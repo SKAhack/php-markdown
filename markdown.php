@@ -311,7 +311,7 @@ class Markdown_Parser {
 		$text = preg_replace('{\r\n?}', "\n", $text);
 
 		# Make sure $text ends with a couple of newlines:
-		$text .= "\n\n";
+		$text = "\n\n" . $text . "\n\n";
 
 		# Convert all tabs to spaces.
 		$text = $this->detab($text);
@@ -329,10 +329,13 @@ class Markdown_Parser {
 		foreach ($this->document_gamut as $method => $priority) {
 			$text = $this->$method($text);
 		}
+
+		$text = preg_replace('~&#x([0-9a-f]+);~ei', 'chr(hexdec("\\1"))', $text);
+		$text = preg_replace('~&#([0-9]+);~e', 'chr("\\1")', $text); 
 		
 		$this->teardown();
 
-		return $text . "\n";
+		return $text;
 	}
 	
 	var $document_gamut = array(
@@ -866,6 +869,8 @@ class Markdown_Parser {
 				$title = $this->titles[$link_id];
 				$title = $this->encodeAttribute($title);
 				$result .=  " title=\"$title\"";
+			} else {
+				$result .=  " title=\"\"";
 			}
 			$result .= $this->empty_element_suffix;
 			$result = $this->hashPart($result);
@@ -889,6 +894,8 @@ class Markdown_Parser {
 		if (isset($title)) {
 			$title = $this->encodeAttribute($title);
 			$result .=  " title=\"$title\""; # $title already quoted
+		} else {
+			$result .=  " title=\"\"";
 		}
 		$result .= $this->empty_element_suffix;
 
@@ -1095,7 +1102,7 @@ class Markdown_Parser {
 			$item = $this->runSpanGamut($item);
 		}
 
-		return "<li>" . $item . "</li>\n";
+		return "    " . "<li>" . $item . "</li>\n";
 	}
 
 
@@ -1323,20 +1330,12 @@ class Markdown_Parser {
 		$bq = preg_replace('/^[ ]*>[ ]?|^[ ]+$/m', '', $bq);
 		$bq = $this->runBlockGamut($bq);		# recurse
 
-		$bq = preg_replace('/^/m', "  ", $bq);
-		# These leading spaces cause problem with <pre> content, 
-		# so we need to fix that:
-		$bq = preg_replace_callback('{(\s*<pre>.+?</pre>)}sx', 
-			array(&$this, '_doBlockQuotes_callback2'), $bq);
+		$bq = preg_replace('/^/m', "    ", $bq);
+		$bq = preg_replace('/^[ ]+$/m', "", $bq);
+		$bq = preg_replace('/\r\n?/', "", $bq);
 
 		return "\n". $this->hashBlock("<blockquote>\n$bq\n</blockquote>")."\n\n";
 	}
-	function _doBlockQuotes_callback2($matches) {
-		$pre = $matches[1];
-		$pre = preg_replace('/^  /m', '', $pre);
-		return $pre;
-	}
-
 
 	function formParagraphs($text) {
 	#
@@ -2295,23 +2294,16 @@ class MarkdownExtra_Parser extends Markdown_Parser {
 		#
 		$text = preg_replace_callback('
 			{
-				^							# Start of a line
-				[ ]{0,'.$less_than_tab.'}	# Allowed whitespace.
-				[|]							# Optional leading pipe (present)
-				(.+) \n						# $1: Header row (at least one pipe)
-				
-				[ ]{0,'.$less_than_tab.'}	# Allowed whitespace.
-				[|] ([ ]*[-:]+[-| :]*) \n	# $2: Header underline
-				
-				(							# $3: Cells
-					(?>
-						[ ]*				# Allowed whitespace.
-						[|] .* \n			# Row content.
-					)*
+				(
+					(?:[ \t]*[\|])([^\n]*)\n
+					(?:[ \t]*[\|][\-\| \t]*)\n
+					(
+						(?:[ \t]*[\|][^\n]*\n)*
+						(?:[ \t]*[\|][^\n]*)+
+					)
 				)
-				(?=\n|\Z)					# Stop at final double newline.
 			}xm',
-			array(&$this, '_doTable_leadingPipe_callback'), $text);
+			array(&$this, '_DoTable_callback1'), $text);
 		
 		#
 		# Find tables without leading pipe.
@@ -2323,90 +2315,78 @@ class MarkdownExtra_Parser extends Markdown_Parser {
 		#
 		$text = preg_replace_callback('
 			{
-				^							# Start of a line
-				[ ]{0,'.$less_than_tab.'}	# Allowed whitespace.
-				(\S.*[|].*) \n				# $1: Header row (at least one pipe)
-				
-				[ ]{0,'.$less_than_tab.'}	# Allowed whitespace.
-				([-:]+[ ]*[|][-| :]*) \n	# $2: Header underline
-				
-				(							# $3: Cells
-					(?>
-						.* [|] .* \n		# Row content
-					)*
+				(
+					(?:[ \t]*)([^\n]+[\|][^\n]*)\n
+					(?:[ \t]*[\-]+[ ]*[\|][\-\| ]*)\n
+					(
+						(?:[ \t]*[^\n]*[\|][^\n]*\n)*
+						(?:[ \t]*[^\n]*[\|][^\n]*)+
+					)
 				)
-				(?=\n|\Z)					# Stop at final double newline.
 			}xm',
-			array(&$this, '_DoTable_callback'), $text);
+			array(&$this, '_DoTable_callback2'), $text);
 
 		return $text;
 	}
-	function _doTable_leadingPipe_callback($matches) {
-		$head		= $matches[1];
-		$underline	= $matches[2];
-		$content	= $matches[3];
-		
-		# Remove leading pipe for each row.
-		$content	= preg_replace('/^ *[|]/m', '', $content);
-		
-		return $this->_doTable_callback(array($matches[0], $head, $underline, $content));
-	}
-	function _doTable_callback($matches) {
-		$head		= $matches[1];
-		$underline	= $matches[2];
-		$content	= $matches[3];
 
-		# Remove any tailing pipes for each line.
-		$head		= preg_replace('/[|] *$/m', '', $head);
-		$underline	= preg_replace('/[|] *$/m', '', $underline);
-		$content	= preg_replace('/[|] *$/m', '', $content);
-		
-		# Reading alignement from header underline.
-		$separators	= preg_split('/ *[|] */', $underline);
-		foreach ($separators as $n => $s) {
-			if (preg_match('/^ *-+: *$/', $s))		$attr[$n] = ' align="right"';
-			else if (preg_match('/^ *:-+: *$/', $s))$attr[$n] = ' align="center"';
-			else if (preg_match('/^ *:-+ *$/', $s))	$attr[$n] = ' align="left"';
-			else									$attr[$n] = '';
+	function _doTable_callback1($matches) {
+		return $this->_doTable($matches, '/(?:\n|^)[ \t]*[\|]([^\n]*)/m');
+	}
+	function _doTable_callback2($matches) {
+		return $this->_doTable($matches, '/(?:\n|^)[ \t]*([^\n]*[\|][^\n]*)/m');
+	}
+
+	function _doTable($matches, $lineRegex) {
+		$m2 = preg_replace('/[\|]\s*$/', "", $matches[2]);
+		$headers = explode('|', $m2);
+
+		$tableBlock = "";
+
+		$tableBlock .= "<table>\n";
+		$tableBlock .= "<thead>\n  <tr>\n";
+
+		if (count($headers) !== 1 || $headers[0] !== '') {
+			for ($i = 0; $i < count($headers); $i++) {
+				$_headers = $this->runSpanGamut(preg_replace('/(^\s+)|(\s+$)/m', '', $headers[$i]));
+				$tableBlock .= "    <th>" . $_headers . "</th>\n";
+			}
 		}
-		
-		# Parsing span elements, including code spans, character escapes, 
-		# and inline HTML tags, so that pipes inside those gets ignored.
-		$head		= $this->parseSpan($head);
-		$headers	= preg_split('/ *[|] */', $head);
-		$col_count	= count($headers);
-		
-		# Write column headers.
-		$text = "<table>\n";
-		$text .= "<thead>\n";
-		$text .= "<tr>\n";
-		foreach ($headers as $n => $header)
-			$text .= "  <th$attr[$n]>".$this->runSpanGamut(trim($header))."</th>\n";
-		$text .= "</tr>\n";
-		$text .= "</thead>\n";
-		
-		# Split content by row.
-		$rows = explode("\n", trim($content, "\n"));
-		
-		$text .= "<tbody>\n";
-		foreach ($rows as $row) {
-			# Parsing span elements, including code spans, character escapes, 
-			# and inline HTML tags, so that pipes inside those gets ignored.
-			$row = $this->parseSpan($row);
-			
-			# Split row by cell.
-			$row_cells = preg_split('/ *[|] */', $row, $col_count);
-			$row_cells = array_pad($row_cells, $col_count, '');
-			
-			$text .= "<tr>\n";
-			foreach ($row_cells as $n => $cell)
-				$text .= "  <td$attr[$n]>".$this->runSpanGamut(trim($cell))."</td>\n";
-			$text .= "</tr>\n";
+
+		$tableBlock .= "  </tr>\n</thead>\n";
+		$tableBlock .= "<tbody>\n";
+
+		$lines = preg_replace_callback($lineRegex, array(&$this, '_doTable_callback_sub'), $matches[3]);
+		$lines = explode("\n", $lines);
+		$lines = array_splice($lines, 0, count($lines) - 1);
+
+		for ($i = 0; $i < count($lines); $i++) {
+			$tableBlock .= "  <tr>\n";
+
+			$bodies = explode('|', $lines[$i]);
+			if (count($headers) < count($bodies)) {
+				$tail = implode('|', array_splice($bodies, count($headers) - 1, count($bodies) - 1));
+				$bodies = array_splice($bodies, 0, count($headers) - 1);
+				$bodies[] = $tail;
+			}
+			if (count($bodies) !== 1 || $bodies[0] !== '') {
+				for ($j = 0; $j < count($bodies); $j++) {
+					$_body = $this->runSpanGamut(preg_replace('/(^\s+)|(\s+$)/m', '', $bodies[$j]));
+					$tableBlock .= "    <td>" . $_body . "</td>\n";
+				}
+			}
+
+			$tableBlock .= "  </tr>\n";
 		}
-		$text .= "</tbody>\n";
-		$text .= "</table>";
-		
-		return $this->hashBlock($text) . "\n";
+
+		$tableBlock .= "</tbody>\n";
+		$tableBlock .= "</table>";
+
+		return $this->hashBlock($tableBlock) . "\n";
+	}
+
+	function _doTable_callback_sub($matches) {
+		$m1 = preg_replace('/[\|]\s*$/', "", $matches[1]);
+		return $m1 . "\n";
 	}
 
 	
