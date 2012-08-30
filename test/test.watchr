@@ -14,7 +14,7 @@ watch('^(.*)\.php')  { |m| run_test }
 # Helpers
 # --------------------------------------------------
 def run_test
-  run "phpunit --color test"
+  run "phpunit --colors test/run.php"
 end
 
 def run( cmd )

@@ -106,10 +106,10 @@ class MarkdownTest extends PHPUnit_Framework_TestCase
     $name = "horizontal-rules";
     $this->helper($name);
   }
-//  public function testHtml5StruturalTags() {
-//    $name = "html5-strutural-tags";
-//    $this->helper($name);
-//  }
+  public function testHtml5StruturalTags() {
+    $name = "html5-strutural-tags";
+    $this->helper($name);
+  }
   public function testImages() {
     $name = "images";
     $this->helper($name);
@@ -130,10 +130,10 @@ class MarkdownTest extends PHPUnit_Framework_TestCase
     $name = "inline-escaped-chars";
     $this->helper($name);
   }
-//  public function testInlineStyleTag() {
-//    $name = "inline-style-tag";
-//    $this->helper($name);
-//  }
+  public function testInlineStyleTag() {
+    $name = "inline-style-tag";
+    $this->helper($name);
+  }
   public function testLazyBlockquote() {
     $name = "lazy-blockquote";
     $this->helper($name);
@@ -188,6 +188,10 @@ class MarkdownTest extends PHPUnit_Framework_TestCase
   }
   public function testTable2() {
     $name = "table2";
+    $this->helper($name);
+  }
+  public function testTagEscape() {
+    $name = "tag-escape";
     $this->helper($name);
   }
   public function testUnorderedListAsterisk() {
