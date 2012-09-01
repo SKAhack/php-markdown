@@ -1422,6 +1422,12 @@ class Markdown_Parser {
 
 
 	function doAutoLinks($text) {
+		$text = preg_replace_callback("/((?:https?):\/\/(?:www[.])?youtube.com\/watch\?(?:[\w\d]+=[-_.!~*'a-zA-Z0-9;\/?:\@&=+\$,%#]+&)*v=([^&\s]+)(?:&[\w\d]+=[-_.!~*'a-zA-Z0-9;\/?:\@&=+\$,%#]+)*\/?)/mi",
+			array(&$this, '_doAutoLinks_youtube_callback'), $text);
+
+		$text = preg_replace_callback("/((?:https?):\/\/(?:www[.])?vimeo.com\/(\d+)(?:[-_.!~*'a-zA-Z0-9;\/?:\@&=+\$,%#])*)/mi",
+			array(&$this, '_doAutoLinks_vimeo_callback'), $text);
+
 		$text = preg_replace_callback("/<(((?:https?|ftp):\/\/?|www[.])(?:[-_.!~*'a-zA-Z0-9;\/?:\@&=+\$,%#]|(?:\([\w\d]+\)))+\/?)>/mi",
 			array(&$this, '_doAutoLinks_url_callback'), $text);
 
@@ -1454,6 +1460,16 @@ class Markdown_Parser {
 	function _doAutoLinks_url_callback($matches) {
 		$url = $this->encodeAttribute($matches[1]);
 		$link = "<a href=\"$url\">$url</a>";
+		return "~L" . (array_push($this->links, $link) - 1) . "L";
+	}
+	function _doAutoLinks_youtube_callback($matches) {
+		$id = $this->encodeAttribute($matches[2]);
+		$link = '<iframe width="560" height="315" src="http://www.youtube.com/embed/'.$id.'" frameborder="0" allowfullscreen></iframe>';
+		return "~L" . (array_push($this->links, $link) - 1) . "L";
+	}
+	function _doAutoLinks_vimeo_callback($matches) {
+		$id = $this->encodeAttribute($matches[2]);
+		$link = '<iframe src="http://player.vimeo.com/video/'.$id.'?color=ff0179" width="530" height="298" frameborder="0" webkitAllowFullScreen mozallowfullscreen allowFullScreen></iframe>';
 		return "~L" . (array_push($this->links, $link) - 1) . "L";
 	}
 	function _doAutoLinks_email_callback($matches) {
