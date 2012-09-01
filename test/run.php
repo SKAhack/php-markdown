@@ -58,10 +58,10 @@ class MarkdownTest extends PHPUnit_Framework_TestCase
 //    $name = "github-style-codeblock";
 //    $this->helper($name);
 //  }
-//  public function testH1WithDoubleHash() {
-//    $name = "h1-with-double-hash";
-//    $this->helper($name);
-//  }
+  public function testH1WithDoubleHash() {
+    $name = "h1-with-double-hash";
+    $this->helper($name);
+  }
   public function testH1WithEquals() {
     $name = "h1-with-equals";
     $this->helper($name);
@@ -204,6 +204,10 @@ class MarkdownTest extends PHPUnit_Framework_TestCase
   }
   public function testUnorderedListPlus() {
     $name = "unordered-list-plus";
+    $this->helper($name);
+  }
+  public function testUrlAutolinking() {
+    $name = "url-autolinking";
     $this->helper($name);
   }
 

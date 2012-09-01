@@ -265,6 +265,7 @@ class Markdown_Parser {
 
 	# Internal hashes used during transformation.
 	var $urls = array();
+	var $links = array();
 	var $titles = array();
 	var $html_hashes = array();
 	
@@ -279,6 +280,7 @@ class Markdown_Parser {
 	#
 		# Clear global hashes.
 		$this->urls = $this->predef_urls;
+		$this->links = array();
 		$this->titles = $this->predef_titles;
 		$this->html_hashes = array();
 		
@@ -291,6 +293,7 @@ class Markdown_Parser {
 	# which may be taking up memory unnecessarly.
 	#
 		$this->urls = array();
+		$this->links = array();
 		$this->titles = array();
 		$this->html_hashes = array();
 	}
@@ -652,6 +655,8 @@ class Markdown_Parser {
 
 		"doItalicsAndBold"    =>  50,
 		"doHardBreaks"        =>  60,
+
+		"doUnhashLinks"       =>  70,
 		);
 
 	function runSpanGamut($text) {
@@ -675,6 +680,13 @@ class Markdown_Parser {
 		return $this->hashPart("<br$this->empty_element_suffix\n");
 	}
 
+	function doUnhashLinks($text) {
+		$text = preg_replace_callback('/(~L(\d+)L)/', array(&$this, '_doUnhashLinks_callback'), $text);
+		return $text;
+	}
+	function _doUnhashLinks_callback($matches) {
+		return $this->links[$matches[2]];
+	}
 
 	function doAnchors($text) {
 	#
@@ -778,7 +790,8 @@ class Markdown_Parser {
 		else {
 			$result = $whole_match;
 		}
-		return $result;
+
+		return "~L" . (array_push($this->links, $result) - 1) . "L";
 	}
 	function _doAnchors_inline_callback($matches) {
 		$whole_match	=  $matches[1];
@@ -797,7 +810,7 @@ class Markdown_Parser {
 		$link_text = $this->runSpanGamut($link_text);
 		$result .= ">$link_text</a>";
 
-		return $this->hashPart($result);
+		return "~L" . (array_push($this->links, $result) - 1) . "L";
 	}
 
 
@@ -884,7 +897,7 @@ class Markdown_Parser {
 			$result = $whole_match;
 		}
 
-		return $result;
+		return "~L" . (array_push($this->links, $result) - 1) . "L";
 	}
 	function _doImages_inline_callback($matches) {
 		$whole_match	= $matches[1];
@@ -903,7 +916,7 @@ class Markdown_Parser {
 		}
 		$result .= $this->empty_element_suffix;
 
-		return $this->hashPart($result);
+		return "~L" . (array_push($this->links, $result) - 1) . "L";
 	}
 
 
@@ -1409,7 +1422,10 @@ class Markdown_Parser {
 
 
 	function doAutoLinks($text) {
-		$text = preg_replace_callback('{<((https?|ftp|dict):[^\'">\s]+)>}i', 
+		$text = preg_replace_callback("/<(((?:https?|ftp):\/\/?|www[.])(?:[-_.!~*'a-zA-Z0-9;\/?:\@&=+\$,%#]|(?:\([\w\d]+\)))+\/?)>/mi",
+			array(&$this, '_doAutoLinks_url_callback'), $text);
+
+		$text = preg_replace_callback("/(((?:https?|ftp):\/\/?|www[.])(?:[-_.!~*'a-zA-Z0-9;\/?:\@&=+\$,%#]|(?:\([\w\d]+\)))+\/?)/mi",
 			array(&$this, '_doAutoLinks_url_callback'), $text);
 
 		# Email addresses: <address@domain.foo>
@@ -1438,12 +1454,12 @@ class Markdown_Parser {
 	function _doAutoLinks_url_callback($matches) {
 		$url = $this->encodeAttribute($matches[1]);
 		$link = "<a href=\"$url\">$url</a>";
-		return $this->hashPart($link);
+		return "~L" . (array_push($this->links, $link) - 1) . "L";
 	}
 	function _doAutoLinks_email_callback($matches) {
 		$address = $matches[1];
 		$link = $this->encodeEmailAddress($address);
-		return $this->hashPart($link);
+		return "~L" . (array_push($this->links, $link) - 1) . "L";
 	}
 
 
